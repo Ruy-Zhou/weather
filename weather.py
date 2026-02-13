@@ -28,6 +28,7 @@ async def make_nws_request(url: str) -> dict[str, Any] | None:
             response.raise_for_status()
             return response.json()
         except Exception as e:
+            print(f"Error fetching {url}: {e}")
             return None
 
 def format_alert(feature: dict) -> str:
@@ -57,11 +58,49 @@ async def get_alerts(state: str) -> str:
     """
     url = f"{NWS_API_BASE}/points/{state}:{state}"
     data = await make_nws_request(url)
+
     if not data or "features" not in data:
         return "Failed to fetch alert data."
+
     if not data["features"]:
         return "No weather alerts for this state."
     
     alerts = [format_alert(feature) for feature in data["features"]]
-    
+
     return "\n\n".join(alerts)
+
+async def get_forecast(lat: str, lon: str) -> str:
+    """Get weather forecast for a given latitude and longitude.
+
+    Args:
+        lat: The latitude coordinate.
+        lon: The longitude coordinate.
+
+    Returns:
+        A formatted string of weather forecast for the location.
+    """
+    points_url = f"{NWS_API_BASE}/points/{lat},{lon}"
+    points_data = await make_nws_request(points_url)
+
+    if not points_data:
+        return "Unable to fetch forecast data."
+
+    forecast_url = points_data["properties"]["forecast"]
+    forecast_data = await make_nws_request(forecast_url)
+
+    if not forecast_data:
+        return "Unable to fetch forecast data."
+
+    periods = forecast_data["properties"]["periods"]
+    forecasts = []
+
+    for period in periods:
+        forecasts.append(f"""
+        {period['name']}:
+        Temprature: {period['temperature']}° {period['temperatureUnit']}
+        Wind: {period['windSpeed']} {period['windDirection']}
+        Forecast: {period['detailedForecast']}
+        """)
+    
+    return "\n\n".join(forecasts)
+    
